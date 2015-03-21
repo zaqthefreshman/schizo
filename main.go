@@ -10,14 +10,14 @@ import (
 )
 
 const (
-	CONN_HOST = "localhost"
-	CONN_TYPE = "tcp"
+	conn_host = "localhost"
+	conn_type = "tcp"
 )
 
 var (
-	HOSTS = []string{"8086", "8087", "8088"}
-	CONNS = make([]net.Conn, 0, len(HOSTS))
-	count = 0
+	hosts       = []string{"8086", "8087", "8088"}
+	connections = make([]net.Conn, 0, len(hosts))
+	count       = 0
 )
 
 func main() {
@@ -25,27 +25,27 @@ func main() {
 		fmt.Println("Missing argument PORT")
 		os.Exit(1)
 	}
-	CONN_PORT := os.Args[1]
+	conn_port := os.Args[1]
 
-	processPort := findStringInSlice(CONN_PORT, HOSTS)
+	processPort := findStringInSlice(conn_port, hosts)
 	if processPort == -1 {
 		fmt.Println("Host not in pool, please use a different port")
 		os.Exit(1)
-	} else {
-		HOSTS = append(HOSTS[:processPort], HOSTS[processPort+1:]...)
 	}
+
+	hosts = append(hosts[:processPort], hosts[processPort+1:]...)
 
 	go findFriends()
 
 	// Listen for incoming connections
-	l, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
+	l, err := net.Listen(conn_type, conn_host+":"+conn_port)
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
 		os.Exit(1)
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
-	fmt.Println("Listening on " + CONN_HOST + ":" + CONN_PORT)
+	fmt.Println("Listening on " + conn_host + ":" + conn_port)
 
 	go countStuff()
 
@@ -73,7 +73,8 @@ func handleRequest(conn net.Conn) {
 		if err != nil {
 			fmt.Println("Error reading:", err.Error())
 		}
-		fmt.Println(fmt.Sprintf("LocalCount:    %d\nReceivedCount: %s", count, buf))
+		fmt.Println(fmt.Sprintf("LocalCount:    %d", count))
+		fmt.Println(fmt.Sprintf("ReceivedCount: %s", buf))
 	}
 }
 
@@ -81,7 +82,7 @@ func countStuff() {
 	for {
 		time.Sleep(1000 * time.Millisecond)
 		count++
-		for _, v := range CONNS {
+		for _, v := range connections {
 			fmt.Println("Sending count to " + v.RemoteAddr().String())
 			v.Write([]byte(strconv.Itoa(count)))
 		}
@@ -98,27 +99,39 @@ func findStringInSlice(s string, l []string) int {
 }
 
 func findFriends() {
+	friendsFound := []String{}
 	for {
-		fmt.Println("Looking for friends")
-		for _, v := range HOSTS {
-			tcpAddr, _ := net.ResolveTCPAddr(CONN_TYPE, CONN_HOST+":"+v)
-			conn, err := net.DialTCP(CONN_TYPE, nil, tcpAddr)
-			if err != nil {
-				fmt.Println("No available host at: " + v)
-			} else {
-				conn.SetKeepAlive(true)
-				fmt.Println("Added Host :" + v)
-				CONNS = append(CONNS, conn)
+		if len(friendsFound) >= len(hosts) {
+			fmt.Println("Looking for friends")
+			for _, v := range hosts {
+				tcpAddr, _ := net.ResolveTCPAddr(conn_type, conn_host+":"+v)
+				conn, err := net.DialTCP(conn_type, nil, tcpAddr)
+				if err != nil {
+					fmt.Println("No available host at: " + v)
+				} else {
+					conn.SetKeepAlive(true)
+					fmt.Println("Added Host :" + v)
+					connections = append(connections, conn)
+				}
 			}
-		}
-		//FIX logic is satified with finding only one friend needs to find all of them
-		for _, v := range CONNS {
-			if findStringInSlice(strings.Split(v.RemoteAddr().String(), ":")[1], HOSTS) == -1 {
-				continue
+			//FIX logic is satified with finding only one friend needs to find all of them
+			for _, v := range connections {
+				friend := strings.Split(v.RemoteAddr().String(), ":")[1]
+				if findStringInSlice(friend, hosts) == -1 {
+					continue
+				}
+				friendsFound = append(friendsFound, friend)
 			}
-			fmt.Println("Done looking for friends")
-			return
 		}
 		time.Sleep(10000 * time.Millisecond)
 	}
+}
+
+func ArrayCompare(hosts, friendsFound) bool {
+	for _, v := range hosts {
+		for _, v2 := range friendsFound {
+			return true
+		}
+	}
+	return false
 }
